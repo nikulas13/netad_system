@@ -221,11 +221,15 @@
     }
 
     function showDashboard(username = "admin") {
-        hideAllViews();
-        $("dashboard-container").style.display = "flex";
-        if (!$("cctv-stream").src) restartStream();
-        startRealtime();
-        sessionStorage.setItem("dcol_view", "admin");
+    hideAllViews();
+    $("dashboard-container").style.display = "flex";
+
+    restartStream();
+    setTimeout(restartStream, 500);
+    setTimeout(restartStream, 1500);
+
+    startRealtime();
+    sessionStorage.setItem("dcol_view", "admin");
     }
 
     function showLogin() {
