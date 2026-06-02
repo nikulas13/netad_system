@@ -45,7 +45,15 @@ def _session_token() -> str:
 
 def _is_allowed_origin() -> bool:
     origin = request.headers.get("Origin")
-    return not origin or origin in config.ALLOWED_ORIGINS
+    if not origin:
+        return True
+
+    # Always allow same-site requests from the deployed app itself
+    current_origin = request.host_url.rstrip("/")
+    if origin == current_origin:
+        return True
+
+    return origin in config.ALLOWED_ORIGINS
 
 
 app = Flask(__name__, static_folder=None)
