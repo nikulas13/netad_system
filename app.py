@@ -17,7 +17,7 @@ from werkzeug.security import check_password_hash
 
 import config
 from input_validator import validate_login_payload
-from rate_limiter import clear_failed_logins, get_blocked_ips, is_allowed, record_failed_login
+from rate_limiter import block_ip, clear_failed_logins, get_blocked_ips, is_allowed, record_failed_login
 from security_headers import init_security_headers
 from security_logger import Event, security_logger
 
@@ -137,6 +137,10 @@ def cleanup_sessions() -> None:
     DBSession.query.filter((DBSession.created_at < cutoff) | (DBSession.revoked.is_(True))).delete(synchronize_session=False)
     db.session.commit()
 
+def revoke_sessions_for_ip(ip: str) -> int:
+    count = DBSession.query.filter_by(ip=ip, revoked=False).update({"revoked": True})
+    db.session.commit()
+    return count
 
 def validate_db_session(token: str, client_ip: str | None = None, touch: bool = True) -> DBSession | None:
     if not token:
@@ -164,20 +168,24 @@ def validate_db_session(token: str, client_ip: str | None = None, touch: bool = 
 
     return sess
 
-
 def require_auth(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         ip = _client_ip()
+
+        if ip in get_blocked_ips():
+            revoke_sessions_for_ip(ip)
+            return jsonify({"success": False, "message": "IP blocked."}), 403
+
         sess = validate_db_session(_session_token(), ip)
         if not sess:
             if request.path == "/video_feed":
                 log_security_event(Event.STREAM_DENIED, ip)
             return jsonify({"success": False, "message": "Login required."}), 401
+
         request.current_session = sess
         return fn(*args, **kwargs)
     return wrapper
-
 
 def _password_ok(password: str) -> bool:
     if config.ADMIN_PASSWORD_HASH:
@@ -228,8 +236,15 @@ def login():
     data = request.get_json(silent=True) or {}
     username, password, threat = validate_login_payload(data)
     if threat:
-        log_security_event(threat, ip, username=username)
-        return jsonify({"success": False, "message": "Invalid login payload."}), 400
+        block_ip(ip, config.BLOCK_DURATION)
+        revoke_sessions_for_ip(ip)
+        log_security_event(
+            threat,
+            ip,
+            username=username,
+            extra={"status": "Instant IP ban for injection attempt"}
+    )
+    return jsonify({"success": False, "message": "Threat detected. IP blocked."}), 403
 
     if username != config.ADMIN_USERNAME or not _password_ok(password):
         blocked, count = record_failed_login(ip)
