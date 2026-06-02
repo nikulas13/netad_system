@@ -315,8 +315,8 @@
     }
 
     function restartStream() {
-        if ($("dashboard-container").style.display !== "flex") return;
-        $("cctv-stream").src = `/video_feed?ts=${Date.now()}`;
+    if ($("dashboard-container").style.display !== "flex") return;
+    $("cctv-stream").src = `/public_video_feed?ts=${Date.now()}`;
     }
 
     async function fetchAll() {
