@@ -168,19 +168,14 @@ def validate_db_session(token: str, client_ip: str | None = None, touch: bool = 
 def require_auth(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        # Do NOT rate-limit authenticated dashboard/video/SSE routes.
-        # The frontend makes frequent calls, and rate-limiting these routes causes
-        # frozen counters, stale logs, and black video from 429 responses.
         ip = _client_ip()
         sess = validate_db_session(_session_token(), ip)
         if not sess:
             if request.path == "/video_feed":
                 log_security_event(Event.STREAM_DENIED, ip)
             return jsonify({"success": False, "message": "Login required."}), 401
-
         request.current_session = sess
         return fn(*args, **kwargs)
-
     return wrapper
 
 
@@ -430,15 +425,16 @@ def _opencv_camera_frames():
 def video_feed():
     log_security_event(Event.STREAM_ACCESS, _client_ip(), username=request.current_session.username)
 
-    source = str(config.CAMERA_SOURCE or "").strip()
-    if source.startswith("http://") or source.startswith("https://"):
-        return _proxy_remote_camera()
+    source = config.CAMERA_SOURCE
+    if not source:
+        return jsonify({"success": False, "message": "DCOL_CAMERA_SOURCE is not set."}), 500
 
+    upstream = requests.get(source, stream=True, timeout=(10, None))
     return Response(
-        stream_with_context(_opencv_camera_frames()),
-        mimetype="multipart/x-mixed-replace; boundary=frame",
+        upstream.iter_content(chunk_size=8192),
+        content_type=upstream.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=frame"),
         headers={"Cache-Control": "no-store"},
-    )
+    )   
 
 
 with app.app_context():
