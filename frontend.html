@@ -12,8 +12,23 @@
             --red: #ef4444; --yellow: #eab308; --orange: #f97316;
         }
         body { min-height: 100vh; background: var(--bg); color: var(--text); }
+        #landing-container, #user-view-container { min-height: 100vh; display: none; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
+        .landing-wrap { width: 100%; max-width: 900px; text-align: center; }
+        .landing-title { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+        .landing-subtitle { color: var(--muted); margin-bottom: 24px; }
+        .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+        .choice-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 28px; text-align: left; cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+        .choice-card:hover { transform: translateY(-2px); border-color: var(--blue); }
+        .choice-card h2 { margin-bottom: 8px; }
+        .choice-card p { color: var(--muted); line-height: 1.5; }
+        .choice-button { display: inline-block; margin-top: 18px; padding: 10px 14px; border-radius: 6px; background: var(--blue); color: white; font-weight: 700; }
+        .user-shell { width: 100%; max-width: 1100px; }
+        .user-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .back-btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 6px; padding: 9px 12px; cursor: pointer; font-weight: 700; }
+        #public-cctv-stream { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #000; border-radius: 8px; border: 1px solid var(--line); }
+
         button, input { font: inherit; }
-        #login-container { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); z-index: 10; }
+        #login-container { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; background: var(--bg); z-index: 10; }
         .login-box { width: 100%; max-width: 380px; padding: 32px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
         .login-brand { font-size: 1.8rem; font-weight: 700; text-align: center; margin-bottom: 8px; }
         .login-box p { text-align: center; color: var(--muted); margin-bottom: 22px; }
@@ -58,10 +73,42 @@
         .empty-msg { color: var(--muted); text-align: center; font-size: .82rem; padding: 12px 0; }
         .red { color: var(--red); } .green { color: var(--green); } .yellow { color: var(--yellow); }
         @media (max-width: 1000px) { .dashboard-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 640px) { .stats-row { grid-template-columns: 1fr; } .navbar, .header-row { align-items: flex-start; flex-direction: column; } .main-content { padding: 16px; } }
+        @media (max-width: 640px) { .stats-row, .choice-grid { grid-template-columns: 1fr; } .navbar, .header-row, .user-topbar { align-items: flex-start; flex-direction: column; } .main-content { padding: 16px; } }
     </style>
 </head>
 <body>
+<div id="landing-container">
+    <div class="landing-wrap">
+        <div class="landing-title">DCOL Secure Monitor</div>
+        <p class="landing-subtitle">Choose an access mode</p>
+        <div class="choice-grid">
+            <div class="choice-card" id="user-view-card">
+                <h2>User View</h2>
+                <p>View the live CCTV camera only. No credentials required and no admin controls are shown.</p>
+                <span class="choice-button">Open Camera View</span>
+            </div>
+            <div class="choice-card" id="admin-view-card">
+                <h2>Admin View</h2>
+                <p>Secure dashboard with login, active sessions, blocked IPs, and activity logs.</p>
+                <span class="choice-button">Open Admin Login</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="user-view-container">
+    <div class="user-shell">
+        <div class="user-topbar">
+            <div>
+                <h1>CCTV Live View</h1>
+                <p class="landing-subtitle">Camera-only user access</p>
+            </div>
+            <button class="back-btn" id="user-back-btn" type="button">Back</button>
+        </div>
+        <img id="public-cctv-stream" alt="Public CCTV stream">
+    </div>
+</div>
+
 <div id="login-container">
     <div class="login-box">
         <div class="login-brand">DCOL</div>
@@ -148,28 +195,63 @@
         });
     }
 
-    function showDashboard(username = "admin") {
+    function hideAllViews() {
+        $("landing-container").style.display = "none";
+        $("user-view-container").style.display = "none";
         $("login-container").style.display = "none";
+        $("dashboard-container").style.display = "none";
+    }
+
+    function showLanding() {
+        stopRealtime();
+        $("cctv-stream").src = "";
+        $("public-cctv-stream").src = "";
+        sessionStorage.removeItem("dcol_view");
+        hideAllViews();
+        $("landing-container").style.display = "flex";
+    }
+
+    function showUserView() {
+        stopRealtime();
+        $("cctv-stream").src = "";
+        hideAllViews();
+        $("user-view-container").style.display = "flex";
+        $("public-cctv-stream").src = `/public_video_feed?ts=${Date.now()}`;
+        sessionStorage.setItem("dcol_view", "user");
+    }
+
+    function showDashboard(username = "admin") {
+        hideAllViews();
         $("dashboard-container").style.display = "flex";
         if (!$("cctv-stream").src) restartStream();
         startRealtime();
+        sessionStorage.setItem("dcol_view", "admin");
     }
 
     function showLogin() {
         stopRealtime();
         $("cctv-stream").src = "";
-        $("dashboard-container").style.display = "none";
+        hideAllViews();
         $("login-container").style.display = "flex";
+        sessionStorage.setItem("dcol_view", "admin");
     }
 
-    async function checkExistingSession() {
+    async function openAdminView() {
         try {
             const res = await api("/api/me");
             if (res.ok) {
                 const data = await res.json();
-                if (data.success) showDashboard(data.username);
+                if (data.success) return showDashboard(data.username);
             }
-        } catch { /* stay on login */ }
+        } catch { /* show login */ }
+        showLogin();
+    }
+
+    async function restoreView() {
+        const view = sessionStorage.getItem("dcol_view");
+        if (view === "user") return showUserView();
+        if (view === "admin") return openAdminView();
+        showLanding();
     }
 
     async function attemptLogin() {
@@ -202,7 +284,7 @@
     async function logout() {
         await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {});
         $("username").value = "";
-        showLogin();
+        showLanding();
     }
 
     function startRealtime() {
@@ -323,6 +405,9 @@
         $("camera-clock").textContent = now.toLocaleTimeString();
     }
 
+    $("user-view-card").addEventListener("click", showUserView);
+    $("admin-view-card").addEventListener("click", openAdminView);
+    $("user-back-btn").addEventListener("click", showLanding);
     $("login-btn").addEventListener("click", attemptLogin);
     $("logout-btn").addEventListener("click", logout);
     $("cctv-stream").addEventListener("error", () => setTimeout(restartStream, 2000));
@@ -331,9 +416,13 @@
     });
 
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden && $("dashboard-container").style.display === "flex") {
+        if (document.hidden) return;
+        if ($("dashboard-container").style.display === "flex") {
             restartStream();
             startRealtime();
+        }
+        if ($("user-view-container").style.display === "flex") {
+            $("public-cctv-stream").src = `/public_video_feed?ts=${Date.now()}`;
         }
     });
 
@@ -342,11 +431,14 @@
             restartStream();
             startRealtime();
         }
+        if ($("user-view-container").style.display === "flex") {
+            $("public-cctv-stream").src = `/public_video_feed?ts=${Date.now()}`;
+        }
     });
 
     setInterval(updateClock, 1000);
     updateClock();
-    checkExistingSession();
+    restoreView();
 </script>
 </body>
 </html>

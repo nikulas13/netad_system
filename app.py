@@ -405,7 +405,7 @@ def _proxy_remote_camera():
         finally:
             upstream.close()
 
-    return Response(stream_with_context(generate()), mimetype=content_type, headers={"Cache-Control": "no-store"})
+    return Response(stream_with_context(generate()), content_type=content_type, headers={"Cache-Control": "no-store"})
 
 
 def _opencv_camera_frames():
@@ -435,21 +435,22 @@ def _opencv_camera_frames():
         cap.release()
 
 
+@app.get("/public_video_feed")
+def public_video_feed():
+    """Public camera-only feed for User View. No admin data is exposed here."""
+    if _is_remote_camera_source():
+        return _proxy_remote_camera()
+    return Response(_opencv_camera_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
 @app.get("/video_feed")
 @require_auth
 def video_feed():
+    """Authenticated camera feed for the Admin dashboard."""
     log_security_event(Event.STREAM_ACCESS, _client_ip(), username=request.current_session.username)
-
-    source = config.CAMERA_SOURCE
-    if not source:
-        return jsonify({"success": False, "message": "DCOL_CAMERA_SOURCE is not set."}), 500
-
-    upstream = requests.get(source, stream=True, timeout=(10, None))
-    return Response(
-        upstream.iter_content(chunk_size=8192),
-        content_type=upstream.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=frame"),
-        headers={"Cache-Control": "no-store"},
-    )   
+    if _is_remote_camera_source():
+        return _proxy_remote_camera()
+    return Response(_opencv_camera_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
 with app.app_context():
