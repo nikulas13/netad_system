@@ -23,7 +23,7 @@ def _csv_env(name: str, default: list[str]) -> list[str]:
 
 # Camera. Use DCOL_CAMERA_SOURCE for an RTSP/HTTP/MJPEG URL, or leave as 0 for
 # the first local webcam.
-CAMERA_SOURCE = os.getenv("https://name-meat-yet-stage.trycloudflare.com/stream?key=praise-the-fool")
+CAMERA_SOURCE = os.getenv("DCOL_CAMERA_SOURCE")
 CAMERA_BACKEND = os.getenv("DCOL_CAMERA_BACKEND", "CAP_ANY")
 JPEG_QUALITY = int(os.getenv("DCOL_JPEG_QUALITY", "70"))
 FRAME_WIDTH = int(os.getenv("DCOL_FRAME_WIDTH", "640"))
