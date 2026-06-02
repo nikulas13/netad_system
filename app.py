@@ -244,7 +244,7 @@ def login():
             username=username,
             extra={"status": "Instant IP ban for injection attempt"}
     )
-    return jsonify({"success": False, "message": "Threat detected. IP blocked."}), 403
+        return jsonify({"success": False, "message": "Threat detected. IP blocked."}), 403
 
     if username != config.ADMIN_USERNAME or not _password_ok(password):
         blocked, count = record_failed_login(ip)
